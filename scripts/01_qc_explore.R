@@ -1,7 +1,11 @@
 #!/usr/bin/env Rscript
 # QC exploration only — no filtering applied here.
-# Loads all 15 CAF2 Flex per-sample filtered matrices, computes standard
-# per-cell QC metrics, and writes a summary table + diagnostic plots.
+# Loads all 15 Flex per-sample filtered matrices for one cell line, computes
+# standard per-cell QC metrics, and writes a summary table + diagnostic plots.
+#
+# Usage: Rscript 01_qc_explore.R [CELL_LINE]   (default CELL_LINE: CAF2)
+# Expects raw data at data/<CELL_LINE>_results/per_sample_outs/, sample folders
+# named <CELL_LINE>_<replicate>_<condition> (e.g. CAF2_r1_Control, Mel_r2_TGF).
 
 suppressPackageStartupMessages({
   library(Seurat)
@@ -13,8 +17,13 @@ suppressPackageStartupMessages({
 })
 
 proj_dir <- "/Users/paulina/Documents/projects_bioinformatics/CAF-subtypes-inVitro"
-data_dir <- file.path(proj_dir, "data", "CAF2_results", "per_sample_outs")
-out_dir  <- file.path(proj_dir, "results", "qc")
+args <- commandArgs(trailingOnly = TRUE)
+CELL_LINE <- if (length(args) >= 1) args[1] else "CAF2"
+cat("Cell line:", CELL_LINE, "\n")
+
+data_dir    <- file.path(proj_dir, "data", paste0(CELL_LINE, "_results"), "per_sample_outs")
+results_dir <- file.path(proj_dir, "results", CELL_LINE)
+out_dir     <- file.path(results_dir, "qc")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 samples <- list.dirs(data_dir, full.names = FALSE, recursive = FALSE)
@@ -24,7 +33,7 @@ print(samples)
 
 parse_meta <- function(s) {
   replicate <- regmatches(s, regexpr("r[0-9]+", s))
-  condition <- sub("^CAF2_r[0-9]+_", "", s)
+  condition <- sub(paste0("^", CELL_LINE, "_r[0-9]+_"), "", s)
   data.frame(sample = s, replicate = replicate, condition = condition)
 }
 
@@ -56,7 +65,7 @@ merged$replicate <- factor(merged$replicate, levels = c("r1","r2","r3"))
 
 cat("\nTotal cells across all 15 samples (no filtering applied):", ncol(merged), "\n")
 
-saveRDS(merged, file.path(proj_dir, "results", "caf2_merged_unfiltered.rds"))
+saveRDS(merged, file.path(results_dir, "merged_unfiltered.rds"))
 
 # --- Per-sample summary table ---
 qc_df <- merged@meta.data %>%
@@ -150,4 +159,4 @@ p6 <- ggplot(cells_per_sample, aes(x = sample, y = n, fill = condition)) +
 ggsave(file.path(out_dir, "qc_cells_per_sample.png"), p6, width = 8, height = 5, dpi = 150)
 
 cat("\nDone. Outputs written to:", out_dir, "\n")
-cat("Merged unfiltered Seurat object saved to: results/caf2_merged_unfiltered.rds\n")
+cat("Merged unfiltered Seurat object saved to:", file.path(results_dir, "merged_unfiltered.rds"), "\n")
